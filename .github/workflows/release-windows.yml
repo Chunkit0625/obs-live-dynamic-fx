@@ -14,14 +14,24 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Install OBS Studio
+      - name: Download OBS Studio Dependencies
         shell: powershell
         run: |
-          choco install obs-studio -y --no-progress
+          $url = "https://github.com/obsproject/obs-deps/releases/download/2024-01-18/windows-deps-2024-01-18-x64.zip"
+          curl.exe -L -o obs-deps.zip $url
+          Expand-Archive -Path "obs-deps.zip" -DestinationPath "$env:USERPROFILE\obs-deps"
+
+      - name: Download OBS Studio Headers
+        shell: powershell
+        run: |
+          $url = "https://github.com/obsproject/obs-studio/archive/refs/tags/30.0.0.zip"
+          curl.exe -L -o obs-src.zip $url
+          Expand-Archive -Path "obs-src.zip" -DestinationPath "$env:USERPROFILE\obs-src"
 
       - name: Configure CMake
         run: |
-          cmake -S . -B build -G "Visual Studio 17 2022" -A x64 -DCMAKE_PREFIX_PATH="C:/Program Files/obs-studio"
+          cmake -S . -B build -G "Visual Studio 17 2022" -A x64 `
+            -DCMAKE_PREFIX_PATH="$env:USERPROFILE\obs-deps;$env:USERPROFILE\obs-src\obs-studio-30.0.0"
 
       - name: Build Plugin
         run: |
