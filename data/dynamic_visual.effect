@@ -1,0 +1,131 @@
+// OBS effect files use HLSL syntax and are compiled by the active OBS graphics
+// backend.  This is a single-pass filter: no CPU image copies or readbacks.
+
+uniform texture2d image;
+uniform float4x4 ViewProj;
+
+uniform float warp_enabled;
+uniform float warp_intensity;
+uniform float warp_frequency;
+uniform float breath_enabled;
+uniform float breath_amplitude;
+uniform float breath_cycle_seconds;
+uniform float tilt_angle_degrees;
+uniform float color_enabled;
+uniform float color_cycle_seconds;
+uniform float hue_degrees;
+uniform float saturation_delta;
+uniform float gamma_min;
+uniform float gamma_max;
+uniform float grain_enabled;
+uniform float grain_opacity;
+uniform float time;
+uniform float aspect;
+
+sampler_state linear_sampler
+{
+	Filter = Linear;
+	AddressU = Clamp;
+	AddressV = Clamp;
+};
+
+struct VertData {
+	float4 pos : POSITION;
+	float2 uv : TEXCOORD0;
+};
+
+VertData VSDefault(VertData v)
+{
+	VertData o;
+	o.pos = mul(float4(v.pos.xyz, 1.0), ViewProj);
+	o.uv = v.uv;
+	return o;
+}
+
+float hash12(float2 p)
+{
+	float3 p3 = frac(float3(p.xyx) * 0.1031);
+	p3 += dot(p3, p3.yzx + 33.33);
+	return frac((p3.x + p3.y) * p3.z);
+}
+
+float3 rgb_to_hsv(float3 c)
+{
+	float4 k = float4(0.0, -0.3333333, 0.6666667, -1.0);
+	float4 p = lerp(float4(c.bg, k.wz), float4(c.gb, k.xy), step(c.b, c.g));
+	float4 q = lerp(float4(p.xyw, c.r), float4(c.r, p.yzx), step(p.x, c.r));
+	float d = q.x - min(q.w, q.y);
+	float e = 1e-5;
+	return float3(abs(q.z + (q.w - q.y) / (6.0 * d + e)), d / (q.x + e), q.x);
+}
+
+float3 hsv_to_rgb(float3 c)
+{
+	float3 p = abs(frac(c.xxx + float3(0.0, 0.6666667, 0.3333333)) * 6.0 - 3.0);
+	return c.z * lerp(float3(1.0, 1.0, 1.0), saturate(p - 1.0), c.y);
+}
+
+float2 rotate_and_fill(float2 uv)
+{
+	const float radians = tilt_angle_degrees * 0.01745329252 * sin(time * 0.83);
+	const float s = sin(radians);
+	const float c = cos(radians);
+	float2 p = (uv - 0.5) * float2(aspect, 1.0);
+	p = float2(c * p.x - s * p.y, s * p.x + c * p.y);
+	const float fill = max(abs(c) + abs(s) / max(aspect, 1e-4), abs(c) + abs(s) * aspect);
+	return p / max(fill, 1.0) / float2(aspect, 1.0) + 0.5;
+}
+
+float2 apply_spatial_effects(float2 uv)
+{
+	uv = rotate_and_fill(uv);
+	if (breath_enabled > 0.5) {
+		const float period = max(breath_cycle_seconds, 0.01);
+		const float phase = 6.28318530718 * time / period;
+		const float scale_x = 1.0 + breath_amplitude * sin(phase);
+		const float scale_y = 1.0 + breath_amplitude * sin(phase * 1.173 + 1.9);
+		const float2 offset = breath_amplitude * float2(sin(phase * 0.71), cos(phase * 1.37)) * 0.35;
+		uv = (uv - 0.5 - offset) / float2(scale_x, scale_y) + 0.5;
+	}
+	if (warp_enabled > 0.5) {
+		const float phase = time * 0.7;
+		const float2 wave = float2(sin((uv.y * 7.0 + phase) * warp_frequency),
+									cos((uv.x * 8.0 - phase * 1.11) * warp_frequency));
+		uv += wave * warp_intensity;
+	}
+	return saturate(uv);
+}
+
+float4 PSDynamic(VertData v) : TARGET
+{
+	const float2 uv = apply_spatial_effects(v.uv);
+	float4 color = image.Sample(linear_sampler, uv);
+
+	if (color_enabled > 0.5) {
+		const float cycle = max(color_cycle_seconds, 0.01);
+		const float motion = sin(6.28318530718 * time / cycle);
+		float3 hsv = rgb_to_hsv(saturate(color.rgb));
+		hsv.x = frac(hsv.x + motion * hue_degrees / 360.0);
+		hsv.y = saturate(hsv.y + motion * saturation_delta);
+		const float gamma = lerp(gamma_min, gamma_max, motion * 0.5 + 0.5);
+		color.rgb = pow(max(hsv_to_rgb(hsv), 1e-5), 1.0 / max(gamma, 1e-5));
+	}
+
+	if (grain_enabled > 0.5 && grain_opacity > 0.0) {
+		const float pixel_time = floor(time * 24.0);
+		// Sum of uniforms is a fast near-Gaussian film-grain approximation.
+		const float grain = (hash12(v.uv * 8192.0 + pixel_time) + hash12(v.uv * 4096.0 - pixel_time * 1.7) + hash12(v.uv * 2048.0 + pixel_time * 0.31) - 1.5) * 0.6666667;
+		color.rgb = saturate(color.rgb + grain * grain_opacity);
+	}
+
+	return color;
+}
+
+technique Draw
+{
+	pass
+	{
+		vertex_shader = VSDefault(v);
+		pixel_shader = PSDynamic(v);
+	}
+}
