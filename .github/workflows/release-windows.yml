@@ -14,12 +14,10 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Setup Ninja & MSBuild
-        uses: choco-gh/setup-chocolatey@v3
-
-      - name: Install OBS Studio SDK via Chocolatey
+      - name: Install OBS Studio
+        shell: powershell
         run: |
-          choco install obs-studio -y
+          choco install obs-studio -y --no-progress
 
       - name: Configure CMake
         run: |
