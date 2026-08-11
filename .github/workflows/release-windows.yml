@@ -14,12 +14,13 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Download OBS Studio SDK
+      - name: Download OBS Studio SDK via GitHub CLI
         shell: powershell
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          $url = "https://github.com/obsproject/obs-studio/releases/download/30.0.0/obs-studio-30.0.0-x64.zip"
-          Invoke-WebRequest -Uri $url -OutFile "obs-studio.zip"
-          Expand-Archive -Path "obs-studio.zip" -DestinationPath "$env:USERPROFILE\obs-sdk"
+          gh release download 30.0.0 --repo obsproject/obs-studio --pattern "OBS-Studio-30.0.0-Full-x64.zip" --dir .
+          Expand-Archive -Path "OBS-Studio-30.0.0-Full-x64.zip" -DestinationPath "$env:USERPROFILE\obs-sdk"
 
       - name: Configure CMake
         run: |
