@@ -14,14 +14,16 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Setup OBS Studio Development Environment
-        uses: obsproject/obs-plugintemplate-action@v1
-        with:
-          obs-version: 30.0.0
+      - name: Setup Ninja & MSBuild
+        uses: choco-gh/setup-chocolatey@v3
+
+      - name: Install OBS Studio SDK via Chocolatey
+        run: |
+          choco install obs-studio -y
 
       - name: Configure CMake
         run: |
-          cmake -S . -B build -G "Visual Studio 17 2022" -A x64 -DCMAKE_PREFIX_PATH="${{ env.OBS_STUDIO_DIR }}"
+          cmake -S . -B build -G "Visual Studio 17 2022" -A x64 -DCMAKE_PREFIX_PATH="C:/Program Files/obs-studio"
 
       - name: Build Plugin
         run: |
