@@ -14,16 +14,14 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Download OBS Studio Prebuilt SDK
-        shell: powershell
-        run: |
-          $url = "https://github.com/obsproject/obs-studio/releases/download/30.0.0/OBS-Studio-30.0.0-Full-x64.zip"
-          curl.exe -L -o obs-sdk.zip https://github.com/obsproject/obs-studio/releases/download/30.0.0/OBS-Studio-30.0.0-Full-x64.zip
-          Expand-Archive -Path "obs-sdk.zip" -DestinationPath "$env:USERPROFILE\obs-sdk"
+      - name: Setup OBS Studio Development Environment
+        uses: obsproject/obs-plugintemplate-action@v1
+        with:
+          obs-version: 30.0.0
 
       - name: Configure CMake
         run: |
-          cmake -S . -B build -G "Visual Studio 17 2022" -A x64 -DCMAKE_PREFIX_PATH="$env:USERPROFILE\obs-sdk"
+          cmake -S . -B build -G "Visual Studio 17 2022" -A x64 -DCMAKE_PREFIX_PATH="${{ env.OBS_STUDIO_DIR }}"
 
       - name: Build Plugin
         run: |
