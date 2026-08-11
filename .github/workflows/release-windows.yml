@@ -14,12 +14,15 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Setup MSBuild
-        uses: microsoft/setup-msbuild@v2
+      - name: Download OBS Studio SDK
+        shell: powershell
+        run: |
+          Invoke-WebRequest -Uri "https://github.com/obsproject/obs-studio/releases/download/32.0.2/obs-studio-32.0.2-x64.zip" -OutFile "obs-studio.zip"
+          Expand-Archive -Path "obs-studio.zip" -DestinationPath "$env:USERPROFILE\obs-sdk"
 
       - name: Configure CMake
         run: |
-          cmake -S . -B build -G "Visual Studio 17 2022" -A x64
+          cmake -S . -B build -G "Visual Studio 17 2022" -A x64 -DCMAKE_PREFIX_PATH="$env:USERPROFILE\obs-sdk"
 
       - name: Build Plugin
         run: |
